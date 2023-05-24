@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Application_Type-list>
+    <Application_Type>
+        <Application_type>Householder planning consent</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Full planning consent;</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Hybrid planning consent</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Outline planning consent</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Reserved Matters</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Listed building consent</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Advertisement consent</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Lawful Development Certificate (LDC)</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Prior notification&#160;</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Removal/variation of conditions</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Approval of conditions</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Consent under Tree Preservation Orders&#160;</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Notification of proposed works to trees in conservation areas</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Application for non-material amendments</Application_type>
+    </Application_Type>
+    <Application_Type>
+        <Application_type>Nationaly Significant Infrastructure Habitats (NSIP'S)</Application_type>
+    </Application_Type>
+</Application_Type-list>
