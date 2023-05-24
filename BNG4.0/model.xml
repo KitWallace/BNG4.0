@@ -1,0 +1,1201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<model name="BNG4.0">
+    <entity id="Tree_Survey" name="Tree_Survey" role="project" order="210">
+        <attribute name="Ref" type="integer" key="yes" autonumber="yes"/>
+        <attribute name="Common" size="40" type="string" optional="yes"/>
+        <attribute name="Latin" size="40" type="string"/>
+        <attribute name="BS5837_Category" size="5" optional="yes"/>
+        <attribute name="Tree_ID" size="5" type="string" key="yes"/>
+        <attribute name="Onsite_Trees" size="5" type="integer"/>
+        <attribute name="To_Remove" size="5" type="integer"/>
+        <attribute name="DBH_cm" size="6" type="float"/>
+        <attribute name="Native" type="string">
+            <compute>(table('Species')[Botanical_name =
+                ~Latin]/BNG_native)[1]</compute>
+            <requires>
+                <require>Latin</require>
+            </requires>
+        </attribute>
+        <attribute name="nominal_DBH_cm" type="float">
+            <compute>
+                if (~DBH_cm &lt;= 7) then 0
+                else if (~DBH_cm &lt;= 30) then 30
+                else if (~DBH_cm &lt;= 90) then 90
+                else 130
+                </compute>
+            <requires>
+                <require>DBH_cm</require>
+            </requires>
+        </attribute>
+        <attribute name="RPA_m" type="float" unit="m">
+            <compute>
+                let $RPA_radius_m := ~nominal_DBH_cm * 12 div 100
+                return  math:pi() * $RPA_radius_m * $RPA_radius_m
+            </compute>
+            <requires>
+                <require>nominal_DBH_cm</require>
+            </requires>
+        </attribute>
+        <attribute name="RPA_ha" type="float" unit="hectare">
+            <compute>
+                ~RPA_m div 10000
+            </compute>
+            <requires>
+                <require>RPA_m</require>
+            </requires>
+        </attribute>
+        <attribute name="RPA_baseline" type="float" unit="hectare">
+            <compute>~RPA_ha  * ~Onsite_Trees</compute>
+            <requires>
+                <require>RPA_ha</require>
+                <require>Onsite_Trees</require>
+            </requires>
+        </attribute>
+        <attribute name="RPA_retained" type="float" unit="hectare">
+            <compute>~RPA_ha  * (~Onsite_Trees - ~To_Remove)</compute>
+            <requires>
+                <require>RPA_ha</require>
+                <require>Onsite_Trees</require>
+                <require>To_Remove</require>
+            </requires>
+        </attribute>
+        <attribute name="RPA_lost" type="float" unit="hectare">
+            <compute>~RPA_ha  * ~To_Remove</compute>
+            <requires>
+                <require>RPA_ha</require>
+                <require>To_Remove</require>
+            </requires>
+        </attribute>
+    </entity>
+    <entity name="Tree_Creation" id="Tree_Creation" role="project" order="220">
+        <attribute name="Ref" type="integer" key="yes" autonumber="yes"/>
+        <attribute name="Size" type="enum">
+            <compute><![CDATA[(<option>Small</option>,<option>Medium</option>,<option>Large</option>)]]></compute>
+        </attribute>
+        <attribute name="Condition" type="enum">
+            <compute><![CDATA[(<option>Poor</option>,<option>Moderate</option>,<option>Good</option>)]]></compute>
+        </attribute>
+        <attribute name="Number" type="integer" size="6" default="0"/>
+        <attribute name="Nominal_DBH_cm" type="float" size="6" unit="cm">
+            <compute>
+                if (~Size="Small") then 30
+                else if (~Size="Medium") then 90
+                else 130
+            </compute>
+            <requires>
+                <require>Size</require>
+            </requires>
+        </attribute>
+        <attribute name="RPA_m" type="float" unit="m">
+            <compute>
+                let $RPA_radius_m := ~Nominal_DBH_cm * 12 div 100
+                let $RPA_m := math:pi() * $RPA_radius_m * $RPA_radius_m
+                return $RPA_m
+            </compute>
+            <requires>
+                <require>Nominal_DBH_cm</require>
+            </requires>
+        </attribute>
+        <attribute name="RPA_ha" type="float" unit="hectares">
+            <compute>
+                ~RPA_m div 10000
+            </compute>
+            <requires>
+                <require>RPA_m</require>
+            </requires>
+        </attribute>
+        <attribute name="Area" type="float" unit="hectares">
+            <compute>~RPA_ha  * ~Number</compute>
+            <requires>
+                <require>RPA_ha</require>
+                <require>Number</require>
+            </requires>
+        </attribute>
+    </entity>
+    <entity name="Tree_Survey_Summary" id="Tree_Survey_Summary" role="project" singleton="yes" order="200">
+        <attribute name="Ref" type="integer" size="5" key="yes" autonumber="yes"/>
+        <attribute name="Baseline_trees" type="float">
+            <compute>sum(table('Tree_Survey')/Onsite_Trees)</compute>
+        </attribute>
+        <attribute name="Retained_trees" type="float">
+            <compute>sum(table('Tree_Survey')/(Onsite_Trees - To_Remove))</compute>
+        </attribute>
+        <attribute name="Baseline_natives" type="integer">
+            <compute>sum(table('Tree_Survey')[Native = "Yes"]/Onsite_Trees)</compute>
+        </attribute>
+        <attribute name="Baseline_area" type="float" format="0.00">
+            <compute>sum(table('Tree_Survey')/RPA_baseline)</compute>
+        </attribute>
+        <attribute name="Retained_area" type="float" format="0.00">
+            <compute>sum(table('Tree_Survey')/RPA_retained)</compute>
+        </attribute>
+        <attribute name="Lost_area" type="float" format="0.00">
+            <compute>sum(table('Tree_Survey')/RPA_lost)</compute>
+        </attribute>
+        <attribute name="Tree_Baseline_Area" type="float" format="0.00">
+            <compute>sum(table('Habitat_Baseline')[Broad_Habitat='Individual trees']/Area)</compute>
+        </attribute>
+        <attribute name="Tree_Baseline_Retained_Area" type="float" format="0.00">
+            <compute>sum(table('Habitat_Baseline')[Broad_Habitat='Individual trees']/Area_retained)</compute>
+        </attribute>
+        <attribute name="Tree_Area_Required" type="float" format="0.00">
+            <compute>sum(table('Tree_Creation')/Area)</compute>
+        </attribute>
+        <attribute name="Tree_Area_Created" type="float" format="0.00">
+            <compute>sum(table('Habitat_Creation')[Broad_Habitat='Individual trees']/Area)</compute>
+        </attribute>
+    </entity><!-- PROJECT SUMMARY -->
+    <entity id="Project" name="Project" role="project" singleton="yes" order="100">
+        <attribute name="Ref" type="integer" size="5" key="yes" autonumber="yes"/>
+        <attribute name="Name" type="string" size="50"/>
+        <attribute name="Local_Authority" type="enum" size="10">
+            <compute>table('Local_Authority')/Local_Authority</compute>
+        </attribute>
+        <attribute name="Application_Type" type="enum" size="10">
+            <compute>table('Application_Type')/Application_type</compute>
+        </attribute>
+        <attribute name="Net_Gain_Target_pc" type="float" size="6" default="10" label="Net Gain Target %"/>
+        <attribute name="Site_Area" unit="hectare" type="float"/>
+        <attribute name="Habitat_Baseline_Total_Area" unit="hectare" type="float" format="0.00">
+            <compute>sum(table('Habitat_Baseline')/Area)</compute>
+        </attribute>
+        <attribute name="Habitat_Baseline_Area_Canopy" unit="hectare" type="float" format="0.00">
+            <compute>sum(table('Habitat_Baseline')[Habitat= ("Urban tree","Rural tree") or contains(Habitat,"green wall")]/Area)</compute>
+        </attribute>
+        <attribute name="Habitat_Baseline_Net_Area" unit="hectare" type="float" format="0.00">
+            <comment>Excluding area of individual trees and Green walls</comment>
+            <compute>~Habitat_Baseline_Total_Area - ~Habitat_Baseline_Area_Canopy</compute>
+            <requires>
+                <require>Habitat_Baseline_Total_Area</require>
+                <require>Habitat_Baseline_Area_Canopy</require>
+            </requires>
+        </attribute>
+        <attribute name="Habitat_Baseline_Retained_Area" unit="hectare" type="float" format="0.00">
+            <compute>sum(table('Habitat_Baseline')/Area_retained)</compute>
+        </attribute>
+        <attribute name="Habitat_Baseline_Enhanced_Area" unit="hectare" type="float" format="0.00">
+            <compute>sum(table('Habitat_Baseline')/Area_enhanced)</compute>
+        </attribute>
+        <attribute name="Habitat_Baseline_Area_Lost" unit="hectare" type="float" format="0.00">
+            <compute>sum(table('Habitat_Baseline')/Area_lost)</compute>
+        </attribute>
+        <attribute name="Habitat_Created_Total_Area" unit="hectare" type="float" format="0.00">
+            <compute>sum(table('Habitat_Creation')/Area)</compute>
+        </attribute>
+        <attribute name="Habitat_Enhanced_Total_Area" unit="hectare" type="float" format="0.00">
+            <compute>sum(table('Habitat_Enhancement')/Area)</compute>
+        </attribute><!--  On-site -->
+        <attribute name="On-site_Habitat_Baseline_Units_Total" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Baseline')[On-off-site="On-site"]/Total_habitat_units)</compute>
+        </attribute>
+        <attribute name="On-site_Habitat_Baseline_Units_Retained" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Baseline')[On-off-site="On-site"]/Baseline_units_retained)</compute>
+        </attribute>
+        <attribute name="On-site_Habitat_Created_Total_Units" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Creation')[On-off-site="On-site"]/Habitat_units_delivered)</compute>
+        </attribute>
+        <attribute name="On-site_Habitat_Enhanced_Total_Units" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Enhancement')[On-off-site="On-site"]/Habitat_units_delivered_SS)</compute>
+        </attribute>
+        <attribute name="On-site_Habitat_Post-intervention_Total_Units" unit="Unit" type="float" format="0.0000">
+            <compute>~On-site_Habitat_Baseline_Units_Retained + ~On-site_Habitat_Created_Total_Units + ~On-site_Habitat_Enhanced_Total_Units</compute>
+            <requires>
+                <require>On-site_Habitat_Baseline_Units_Retained</require>
+                <require>On-site_Habitat_Created_Total_Units</require>
+                <require>On-site_Habitat_Enhanced_Total_Units</require>
+            </requires>
+        </attribute>
+        <attribute name="On-site_Net_Change" unit="Unit" type="float" format="0.0000" colour-sign="yes">
+            <compute>~On-site_Habitat_Post-intervention_Total_Units - ~On-site_Habitat_Baseline_Units_Total  </compute>
+            <requires>
+                <require>On-site_Habitat_Baseline_Units_Total</require>
+                <reguire>On-site_Habitat_Post-intervention_Total_Units</reguire>
+            </requires>
+        </attribute><!-- Off-site  -->
+        <attribute name="Off-site_Habitat_Baseline_Units_Total" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Baseline')[On-off-site="Off-site"]/Total_habitat_units)</compute>
+        </attribute>
+        <attribute name="Off-site_Habitat_Baseline_Units_Retained" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Baseline')[On-off-site="Off-site"]/Baseline_units_retained)</compute>
+        </attribute>
+        <attribute name="Off-site_Habitat_Created_Total_Units" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Creation')[On-off-site="Off-site"]/Habitat_units_delivered)</compute>
+        </attribute>
+        <attribute name="Off-site_Habitat_Enhanced_Total_Units" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Enhancement')[On-off-site="Off-site"]/Habitat_units_delivered_SS)</compute>
+        </attribute>
+        <attribute name="Off-site_Habitat_Post-intervention_Total_Units" unit="Unit" type="float" format="0.0000">
+            <compute>~Off-site_Habitat_Baseline_Units_Retained + ~Off-site_Habitat_Created_Total_Units + ~Off-site_Habitat_Enhanced_Total_Units</compute>
+            <requires>
+                <require>Off-site_Habitat_Baseline_Units_Retained</require>
+                <require>Off-site_Habitat_Created_Total_Units</require>
+                <require>Off-site_Habitat_Enhanced_Total_Units</require>
+            </requires>
+        </attribute>
+        <attribute name="Off-site_Net_Change" unit="Unit" type="float" format="0.0000" colour-sign="yes">
+            <compute>~Off-site_Habitat_Post-intervention_Total_Units - ~Off-site_Habitat_Baseline_Units_Total  </compute>
+            <requires>
+                <require>Off-site_Habitat_Baseline_Units_Total</require>
+                <reguire>Off-site_Habitat_Post-intervention_Total_Units</reguire>
+            </requires>
+        </attribute><!-- Totals  -->
+        <attribute name="Habitat_Baseline_Units_Total" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Baseline')/Total_habitat_units)</compute>
+        </attribute>
+        <attribute name="Habitat_Baseline_Units_Target" unit="Unit" type="float" format="0.0000">
+            <compute>~Habitat_Baseline_Units_Total * (100 + ~Net_Gain_Target_pc ) div 100</compute>
+            <requires>
+                <require>Net_Gain_Target_pc</require>
+                <reguire>Habitat_Baseline_Units_Total</reguire>
+            </requires>
+        </attribute>
+        <attribute name="Habitat_Baseline_Units_Retained" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Baseline')/Baseline_units_retained)</compute>
+        </attribute>
+        <attribute name="Habitat_Baseline_Units_Enhanced" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Baseline')/Baseline_units_enhanced)</compute>
+        </attribute>
+        <attribute name="Habitat_Baseline_Units_Lost" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Baseline')/Units_lost)</compute>
+        </attribute>
+        <attribute name="Habitat_Baseline_Units_Lost_Canopy" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Baseline')[Habitat= ("Urban tree","Rural tree") or contains(Habitat,"green wall")]/Units_lost)</compute>
+        </attribute>
+        <attribute name="Habitat_Baseline_Units_Lost_Net" unit="Unit" type="float" format="0.0000">
+            <comment>Excluding area of individual trees and Green walls</comment>
+            <compute>~Habitat_Baseline_Units_Lost - ~Habitat_Baseline_Units_Lost_Canopy</compute>
+            <requires>
+                <require>Habitat_Baseline_Units_Lost</require>
+                <require>Habitat_Baseline_Units_Lost_Canopy</require>
+            </requires>
+        </attribute>
+        <attribute name="Habitat_Created_Total_Units" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Creation')[On-off-site="Off-site"]/Habitat_units_delivered)</compute>
+        </attribute>
+        <attribute name="Habitat_Enhanced_Total_Units" unit="Unit" type="float" format="0.0000">
+            <compute>sum(table('Habitat_Enhancement')/Habitat_units_delivered_SS)</compute>
+        </attribute>
+        <attribute name="Habitat_Post-intervention_Total_Units" unit="Unit" type="float" format="0.0000">
+            <compute>~On-site_Habitat_Post-intervention_Total_Units + ~Off-site_Habitat_Post-intervention_Total_Units</compute>
+            <requires>
+                <require>On-site_Habitat_Post-intervention_Total_Units</require>
+                <require>Off-site_Habitat_Post-intervention_Total_Units</require>
+            </requires>
+        </attribute>
+        <attribute name="Net-change" unit="Unit" type="float" format="0.0000" colour-sign="yes">
+            <compute>~Habitat_Post-intervention_Total_Units - ~Habitat_Baseline_Units_Total</compute>
+            <requires>
+                <require>Habitat_Baseline_Units_Total</require>
+                <require>Habitat_Post-intervention_Total_Units</require>
+            </requires>
+        </attribute>
+        <attribute name="Target_Net_change" unit="Unit" type="float" format="0.0000" colour-sign="yes">
+            <compute> ~Habitat_Post-intervention_Total_Units - ~Habitat_Baseline_Units_Target </compute>
+            <requires>
+                <reguire>Habitat_Post-intervention_Total_Units</reguire>
+                <reguire>Habitat_Baseline_Units_Target</reguire>
+            </requires>
+        </attribute>
+    </entity><!-- HABITAT-BASELINE -->
+    <entity name="Habitat_Baseline" id="Habitat_Baseline" role="project" order="110">
+        <description>
+            <div>Based on the Calculation Tool table A-1 - On-Site Habitat Baseline combined with D-1 - Off-Site Habitat Baseline</div>
+        </description>
+        <attribute name="Ref" size="6" type="integer" key="yes" autonumber="yes"/>
+        <attribute name="On-off-site" type="enum" default="On-site">
+            <compute>(&lt;option&gt;On-site&lt;/option&gt;,&lt;option&gt;Off-site&lt;/option&gt;)</compute>
+        </attribute>
+        <attribute name="Broad_Habitat" size="5" type="enum">
+            <compute>table('Broad_Habitat')/Broad_Habitat</compute>
+        </attribute>
+        <attribute name="Habitat" size="10" type="enum">
+            <compute>table('Habitat')[Broad_Habitat=~Broad_Habitat]/Habitat</compute>
+            <requires>
+                <require>Broad_Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Area" size="6" type="float" unit="hectare" default="0" format="0.00"/>
+        <attribute name="Area_retained" size="6" type="float" unit="hectare" default="0" format="0.00"/>
+        <attribute name="Area_enhanced" size="6" type="float" unit="hectare" default="0" format="0.00"/>
+        <attribute name="Area_lost" type="float" unit="hectare" format="0.00">
+            <compute>let $lost-area := ~Area - ~Area_retained - ~Area_enhanced
+                     return if ($lost-area lt 0) then "Error -  Total Area greater than Area Retained Area Enhanced "
+                        else $lost-area
+            </compute>
+            <requires>
+                <require>Area</require>
+                <require>Area_retained</require>
+                <require>Area_enhanced</require>
+            </requires>
+        </attribute>
+        <attribute name="Distinctiveness_Category" size="20" type="string">
+            <compute>table('Habitat')[Habitat=~Habitat]/Distinctiveness_Category</compute>
+            <requires>
+                <require>Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Distinctiveness_Score" type="integer">
+            <compute>table('Habitat')[Habitat=~Habitat]/Distinctiveness_Score</compute>
+            <requires>
+                <require>Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Habitat_Condition" size="7" type="enum">
+            <compute>table('Habitat_Condition')[Habitat=~Habitat]/Condition</compute>
+            <requires>
+                <require>Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Habitat_Condition_Score" size="3" type="integer">
+            <compute>table('Habitat_Condition')[Habitat=~Habitat][Condition= ~Habitat_Condition]/Condition_Score</compute>
+            <requires>
+                <require>Habitat</require>
+                <require>Habitat_Condition</require>
+            </requires>
+        </attribute>
+        <attribute name="Strategic_significance_description" size="3" type="enum" default="Location ecologically desirable but not in local strategy">
+            <compute>table('Strategic_Significance')/Description</compute>
+        </attribute>
+        <attribute name="Strategic_significance" size="3" type="string">
+            <compute>table('Strategic_Significance')[Description =
+                ~Strategic_significance_description]/Strategic_significance</compute>
+            <requires>
+                <require>Strategic_significance_description</require>
+            </requires>
+        </attribute>
+        <attribute name="Strategic_significance_multiplier" size="3" type="float">
+            <compute>table('Strategic_Significance')[Description =
+                ~Strategic_significance_description]/Multiplier</compute>
+            <requires>
+                <require>Strategic_significance_description</require>
+            </requires>
+        </attribute>
+        <attribute name="Required_Action" size="3" type="string">
+            <compute>table('Habitat')[Habitat=~Habitat]/Trading_notes</compute>
+            <requires>
+                <require>Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Spatial_Risk" type="enum" default="On-site">
+            <compute>
+                     if (~On-off-site = "Off-site")
+                     then table('Spatial_Risk')/Spatial_Risk
+                     else &lt;Spatial_Risk&gt;On-site&lt;/Spatial_Risk&gt;
+                     </compute>
+            <requires>
+                <require>On-off-site</require>
+            </requires>
+        </attribute>
+        <attribute name="Spatial_Risk_Multiplier" type="float" size="4">
+            <compute>if (~On-off-site ="Off-site")
+                then table('Spatial_Risk')[Spatial_Risk=~Spatial_Risk]/Multiplier
+                else 1
+            </compute>
+            <requires>
+                <require>Spatial_Risk</require>
+                <require>On-off-site</require>
+            </requires>
+        </attribute>
+        <attribute name="Total_habitat_units" size="3" type="float" unit="Unit" background-color="red" format="0.0000">
+            <compute>~Area *
+                ~Distinctiveness_Score *
+                ~Habitat_Condition_Score *
+                ~Strategic_significance_multiplier *
+                ~Spatial_Risk_Multiplier
+            </compute>
+            <requires>
+                <require>Area</require>
+                <require>Distinctiveness_Score</require>
+                <require>Habitat_Condition_Score</require>
+                <require>Strategic_significance_multiplier</require>
+                <require>Spatial_Risk_Multiplier</require>
+            </requires>
+        </attribute>
+        <attribute name="Baseline_units_retained" type="float" unit="Unit" background-color="red" format="0.0000">
+            <compute>~Area_retained * ~Distinctiveness_Score *
+                ~Habitat_Condition_Score * ~Strategic_significance_multiplier</compute>
+            <requires>
+                <require>Area_retained</require>
+                <require>Distinctiveness_Score</require>
+                <require>Habitat_Condition_Score</require>
+                <require>Strategic_significance_multiplier</require>
+            </requires>
+        </attribute>
+        <attribute name="Baseline_units_enhanced" type="float" unit="Unit" background-color="red" format="0.0000">
+            <compute>~Area_enhanced * ~Distinctiveness_Score *
+                ~Habitat_Condition_Score * ~Strategic_significance_multiplier</compute>
+            <requires>
+                <require>Area_enhanced</require>
+                <require>Distinctiveness_Score</require>
+                <require>Habitat_Condition_Score</require>
+                <require>Strategic_significance_multiplier</require>
+            </requires>
+        </attribute>
+        <attribute name="Units_lost" type="float" unit="Unit" background-color="red" format="0.0000">
+            <compute>~Total_habitat_units - ~Baseline_units_retained -
+                ~Baseline_units_enhanced</compute>
+            <requires>
+                <require>Total_habitat_units</require>
+                <require>Baseline_units_retained</require>
+                <require>Baseline_units_enhanced</require>
+            </requires>
+        </attribute>
+        <attribute name="Bespoke_compensation_agreed" size="2" type="enum" default="No">
+            <compute>(&lt;option&gt;No&lt;/option&gt;,&lt;option&gt;Yes&lt;/option&gt;)</compute>
+        </attribute>
+        <attribute name="Compensation_outcome" type="string">
+            <compute>if (~Required_Action = "Bespoke compensation likely to be required")
+                     then if (~Bespoke_compensation_agreed="Yes")
+                          then "Alternative Compensation Agreed"
+                          else if (~Units_lost &gt; 0)
+                               then "Error - Any loss Unacceptable"
+                               else "OK"
+                     else "OK"
+            
+            </compute>
+        </attribute>
+        <attribute name="User_comments" size="3*40" type="text" optional="yes"/>
+        <attribute name="Consenting_comments" size="3*40" type="text" optional="yes"/>
+        <attribute name="GIS_ref" size="10" type="string" optional="yes"/>
+        <attribute name="Off-site_ref" size="10" type="string" optional="yes"/>
+    </entity><!-- HABITAT-CREATION -->
+    <entity name="Habitat_Creation" id="Habitat_Creation" role="project" order="120">
+        <description>
+            <div>Based on the Calculation Tool  table A-2 - On-Site Habitat Creation combined with D-2 - Off-Site Habitat Creation</div>
+        </description>
+        <attribute name="Ref" size="6" type="integer" key="yes" autonumber="yes"/>
+        <attribute name="On-off-site" type="enum" default="On-site">
+            <compute>(&lt;option&gt;On-site&lt;/option&gt;,&lt;option&gt;Off-site&lt;/option&gt;)</compute>
+        </attribute>
+        <attribute name="Broad_Habitat" size="5" type="enum">
+            <compute>table('Broad_Habitat')/Broad_Habitat</compute>
+        </attribute>
+        <attribute name="Habitat" size="10" type="enum">
+            <compute>table('Habitat')[Broad_Habitat=~Broad_Habitat]/Habitat</compute>
+            <requires>
+                <require>Broad_Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Area" size="6" type="float" default="0" unit="hectare"/>
+        <attribute name="Distinctiveness_Category" size="20" type="string">
+            <compute>table('Habitat')[Habitat=~Habitat]/Distinctiveness_Category</compute>
+            <requires>
+                <require>Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Distinctiveness_Score" type="integer">
+            <compute>table('Habitat')[Habitat=~Habitat]/Distinctiveness_Score</compute>
+            <requires>
+                <require>Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Habitat_Condition" size="7" type="enum">
+            <compute>table('Habitat_Condition')[Habitat=~Habitat]/Condition</compute>
+            <requires>
+                <require>Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Habitat_Condition_Score" size="3" type="integer">
+            <compute>table('Habitat_Condition')[Habitat=~Habitat][Condition=~Habitat_Condition]/Condition_Score</compute>
+            <requires>
+                <require>Habitat</require>
+                <require>Habitat_Condition</require>
+            </requires>
+        </attribute>
+        <attribute name="Strategic_significance_description" size="3" type="enum" default="Location ecologically desirable but not in local strategy">
+            <compute>table('Strategic_Significance')/Description</compute>
+        </attribute>
+        <attribute name="Strategic_significance" size="3" type="string">
+            <compute>table('Strategic_Significance')[Description =
+                ~Strategic_significance_description]/Strategic_significance</compute>
+            <requires>
+                <require>Strategic_significance_description</require>
+            </requires>
+        </attribute>
+        <attribute name="Strategic_significance_Multiplier" size="3" type="float">
+            <compute>table('Strategic_Significance')[Description =
+                ~Strategic_significance_description]/Multiplier</compute>
+            <requires>
+                <require>Strategic_significance_description</require>
+            </requires>
+        </attribute>
+        <attribute name="Standard_time_to_target" size="20" type="string">
+            <compute>(table('Habitat_Creation_Year')[Habitat=~Habitat][Condition=~Habitat_Condition]/Target_Year,"Not Possible")[1] </compute>
+            <requires>
+                <require>Habitat</require>
+                <require>Habitat_Condition</require>
+            </requires>
+        </attribute>
+        <attribute name="Advance_Years" size="6" type="integer" unit="Year" default="0">
+            <comment>Positive for Advance, Negative for delay</comment>
+        </attribute>
+        <attribute name="Standard_or_adjusted_time_to_target_condition" type="string">
+            <compute>
+                if (~Distinctiveness_Score = 0)
+                then "Standard time to target condition applied"
+                else if (~Habitat_Condition = "N/A-Agricultural" and number(~Standard_time_to_target) le number(~Advance_Years)) 
+                then "Check details - is there evidence habitat creation in place?"
+                else if (number(~Standard_time_to_target) le number(~Advance_Years)) 
+                then "Check details - Is there evidence that habitat has reached target condition?"
+                else if (number(~Advance_Years) gt 0 and ~Habitat_Condition = "Poor")then "Check details - is there evidence habitat creation started and the threshold for Poor condition reached?"
+                else if (number(~Advance_Years) lt 0) then "Check details -Delay in starting habitat in required condition?"
+                else if (number(~Advance_Years) gt 0) then "Check details -Is there evidence habitat creation started/in place?"
+                else "Standard time to target condition applied"                
+            </compute><!--   
+        IF (Distinctiveness = "","",    ie no habitat selected 
+        IF (Advance_Years> 0 and Delay_Years>0,"Error-both advance and delayed habitat creation",
+        IF (Distinctiveness_Score = 0, "Standard time to target condition applied",
+        IF (Habitat_Condition = "N/A-Agricultural" and Standard_Time_to_target <= Advance_Years), "Check details -is there evidence habitat creation in place?",
+        IF (Standard_Time_to_target <= Advance_Years and  Delay_Years = 0, "Check details - Is there evidence that habitat has reached target condition?".
+        IF (Standard_Time_to_target ="","",
+        IF (Advance_Years >= AE and Advance_Years >0, "Check details - is there evidence habitat creation started and the threshold for Poor condition reached?",
+        IF (Delay_Years > 0," Check details -Delay in starting habitat in required condition?", 
+        IF (Advance_Years > 0, "Check details -Is there evidence habitat creation started/in place?",
+        "Standard time to target condition applied"))
+        
+ -->
+            <requires>
+                <require>Distinctiveness_Score</require>
+                <require>Habitat_Condition</require>
+                <require>Standard_time_to_target</require>
+                <require>Advance_Years</require>
+            </requires>
+        </attribute>
+        <attribute name="Final_time_to_target" size="4" type="integer" unit="Year">
+            <compute>
+                if (~Standard_time_to_target castable as xs:integer
+                   or ~Standard_time_to_target = "30+")
+                then 
+                   let $Year_to_target := 
+                          if (~Standard_time_to_target = "30+") 
+                          then 30 else xs:integer(~Standard_time_to_target)
+                   return $Year_to_target  - ~Advance_Years
+                else ()
+            </compute>
+            <requires>
+                <require>Standard_time_to_target</require>
+                <require>Advance_Years</require>
+            </requires>
+        </attribute>
+        <attribute name="Final_time_to_target_Multiplier" type="float">
+            <compute>table('Temporal_Multiplier')[Year=~Final_time_to_target]/Time_to_target_Multiplier</compute>
+            <requires>
+                <require>Final_time_to_target</require>
+            </requires>
+        </attribute>
+        <attribute name="Standard_difficulty_of_creation">
+            <compute>table('Habitat')[Habitat=~Habitat]/Technical_Difficulty_Creation</compute>
+        </attribute>
+        <attribute name="Applied_difficulty_multiplier">
+            <compute>
+                if (~Standard_or_adjusted_time_to_target_condition = "Check details -Is there evidence that habitat has reached target condition?")
+                then "Low Difficulty - only applicable if all habitat created before losses"
+                else if (~Standard_or_adjusted_time_to_target_condition = "Check details - is there evidence habitat creation started and the threshold for Poor condition reached?"
+                and not ( ~Habitat = ("Traditional orchards","Ornamental lake or pond", "Ponds (non-priority habitat)","Ruderal/Ephemeral","Developed land;sealed surface")))
+                then "Enhancement difficulty applied"
+                else "Standard difficulty applied"    
+            </compute><!--             
+  
+        if (F ="","",   (: cant see a  column F - could be hidden?  
+           IF (Target_Condition = "Check details -Is there evidence that habitat has reached target condition?", "Low Difficulty - only applicable if all habitat created before losses",
+             IF (Target_Condition = "Check details - is there evidence habitat creation started and the threshold for Poor condition reached?"  
+                  and  not (Habitat = ("Traditional orchards","Ornamental lake or pond", "Ponds (non-priority habitat)","Ruderal/Ephemeral","Developed land;sealed surface"))
+                    "Enhancement difficulty applied",
+                    "Standard difficulty applied") 
+               
+        -->
+        </attribute>
+        <attribute name="Final_difficulty_of_Creation" type="float">
+            <compute>
+          if (~Applied_difficulty_multiplier = "Standard difficulty applied" and number(~Final_time_to_target)&gt; 0)
+          then  ~Standard_difficulty_of_creation
+          else if (~Applied_difficulty_multiplier = "Low Difficulty - only applicable if all habitat created before losses" and 
+                     ~Advance_Years  ge  ~Standard_time_to_target)
+          then "Low"
+          else table('Habitat')[Habitat=~Habitat]/Technical_Difficulty_Creation   
+          </compute>
+        </attribute>
+        <attribute name="Final_difficulty_of_Creation_Multiplier" type="float">
+            <compute>table('Technical_Difficulty_Creation')[Technical_Difficulty_Creation=~Final_difficulty_of_Creation]/Technical_Difficulty_Creation_Multiplier</compute>
+            <requires>
+                <require>Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Spatial_Risk" type="enum" default="On-site">
+            <compute>
+                     if (~On-off-site = "Off-site")
+                     then table('Spatial_Risk')/Spatial_Risk
+                     else &lt;Spatial_Risk&gt;On-site&lt;/Spatial_Risk&gt;
+                     </compute>
+            <requires>
+                <require>On-off-site</require>
+            </requires>
+        </attribute>
+        <attribute name="Spatial_Risk_Multiplier" type="float" size="4">
+            <compute>if (~On-off-site ="Off-site")
+                     then table('Spatial_Risk')[Spatial_Risk=~Spatial_Risk]/Multiplier
+                     else 1
+            </compute>
+            <requires>
+                <require>Spatial_Risk</require>
+                <require>On-off-site</require>
+            </requires>
+        </attribute>
+        <attribute name="Habitat_units_delivered" type="float" unit="Unit" background-color="red" format="0.0000">
+            <compute>~Area * 
+                ~Distinctiveness_Score *
+                ~Habitat_Condition_Score * 
+                ~Strategic_significance_Multiplier *
+                ~Final_time_to_target_Multiplier *
+                ~Final_difficulty_of_Creation_Multiplier *
+                ~Spatial_Risk_Multiplier
+            </compute>
+            <requires>
+                <require>Area</require>
+                <require>Distinctiveness_Score</require>
+                <require>Habitat_Condition_Score</require>
+                <require>Strategic_significance_Multiplier</require>
+                <require>Final_time_to_target_Multiplier</require>
+                <require>Final_difficulty_of_Creation_Multiplier</require>
+                <require>Spatial_Risk_Multiplier</require>
+            </requires>
+        </attribute>
+        <attribute name="User_comments" size="3*40" type="text" optional="yes"/>
+        <attribute name="Consenting_comments" size="3*40" type="text" optional="yes"/>
+        <attribute name="GIS_ref" size="10" type="string" optional="yes"/>
+        <attribute name="Off-site_ref" size="10" type="string" optional="yes"/>
+    </entity><!-- HABITAT_ENHANCEMENT -->
+    <entity name="Habitat_Enhancement" id="Habitat_Enhancement" role="project" order="130">
+        <description>
+            <div>Based on the Calculation Tool  table A-3 - On-Site Habitat Enhancement combined with  D-3 - Off-Site Habitat Enhancement</div>
+        </description>
+        <attribute name="Ref" size="6" type="integer" key="yes"/>
+        <attribute name="On-off-site" type="enum" default="On-site">
+            <compute>(&lt;option&gt;On-site&lt;/option&gt;,&lt;option&gt;Off-site&lt;/option&gt;)</compute>
+        </attribute>
+        <attribute name="Check" type="string">
+            <compute>if (empty(table('Habitat_Baseline')[Ref=~Ref])) then "Error - no related Habitat Baseline "
+                     else if (table('Habitat_Baseline')[Ref=~Ref]/Ref = 0) then "Error - this habitat is not being enhanced" 
+                     else "Enhancement"
+            </compute>
+        </attribute>
+        <attribute name="Baseline_Broad_Habitat" size="30" type="string">
+            <compute>table('Habitat_Baseline')[Ref=~Ref]/Broad_Habitat</compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Baseline_Habitat" size="30" type="string">
+            <compute>table('Habitat_Baseline')[Ref=~Ref]/Habitat</compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Baseline_Area" size="6" type="float" default="0" unit="hectare">
+            <compute>table('Habitat_Baseline')[Ref=~Ref]/Area</compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Baseline_Distinctiveness_Category" size="20" type="string">
+            <compute>table('Habitat_Baseline')[Ref=~Ref]/Distinctiveness_Category</compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Baseline_Distinctiveness_Score" type="integer">
+            <compute>table('Habitat_Baseline')[Ref=~Ref]/Distinctiveness_Score</compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Baseline_Habitat_Condition" size="30" type="string">
+            <compute>table('Habitat_Baseline')[Ref=~Ref]/Habitat_Condition</compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Baseline_Habitat_Condition_Score" size="3" type="integer">
+            <compute>table('Habitat_Baseline')[Ref=~Ref]/Habitat_Condition_Score</compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Baseline_Strategic_significance_description" size="30" type="string">
+            <compute>table('Habitat_Baseline')[Ref=~Ref]/Strategic_significance_description</compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Baseline_Strategic_significance" size="3" type="string">
+            <compute>table('Habitat_Baseline')[Ref=~Ref]/Strategic_significance</compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Strategic_significance_multiplier" size="3" type="float">
+            <compute>table('Habitat_Baseline')[Ref=~Ref]/Strategic_significance_multiplier</compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Baseline_habitat_units" size="3" type="float" unit="Unit">
+            <compute>table('Habitat_Baseline')[Ref=~Ref]/Total_habitat_units</compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Area" type="float" unit="hectare">
+            <compute>
+                table('Habitat_Baseline')[Ref=~Ref]/Area_enhanced
+            </compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Proposed_Broad_Habitat" size="5" type="enum">
+            <compute>table('Broad_Habitat')/Broad_Habitat</compute>
+        </attribute>
+        <attribute name="Proposed_Habitat" size="5" type="enum">
+            <compute>table('Habitat')[Broad_Habitat=~Proposed_Broad_Habitat]/Habitat</compute>
+            <requires>
+                <require>Proposed_Broad_Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Proposed_Distinctiveness_Category" size="20" type="string">
+            <compute>table('Habitat')[Habitat=~Proposed_Habitat]/Distinctiveness_Category</compute>
+            <requires>
+                <require>Proposed_Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Proposed_Distinctiveness_Score" type="integer">
+            <compute>table('Habitat')[Habitat=~Proposed_Habitat]/Distinctiveness_Score</compute>
+            <requires>
+                <require>Proposed_Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Distinctiveness_Change" size="30" type="string">
+            <compute>concat(~Baseline_Distinctiveness_Category, " - ",~Proposed_Distinctiveness_Category)</compute>
+            <requires>
+                <require>Baseline_Distinctiveness_Category</require>
+                <require>Proposed_Distinctiveness_Category</require>
+            </requires>
+        </attribute>
+        <attribute name="Baseline_Required_Action" size="30" type="string">
+            <compute>table('Habitat_Baseline')[Ref=~Ref]/Required_Action</compute>
+            <requires>
+                <require>Ref</require>
+            </requires>
+        </attribute>
+        <attribute name="Trading_Valid" type="integer">
+            <compute>
+               xs:integer((~Baseline_Required_Action = "Same Habitat Required" and ~Baseline_Habitat = ~Proposed_Habitat) or 
+                (~Baseline_Required_Action = "Compensation Not Required") or
+                (~Baseline_Required_Action = "Same broad habitat or a higher distinctiveness habitat required" and 
+                (~Baseline_Broad_Habitat = ~Proposed_Broad_Habitat) or 
+                (number(~Proposed_Distinctiveness_Score) &gt;= number(~Baseline_Distinctiveness_Score))
+                ) or
+                (~Baseline_Required_Action = "Same distinctiveness or better habitat required" and 
+                 number(~Proposed_Distinctiveness_Score) &gt;= number(~Baseline_Distinctiveness_Score)) or
+                (~Baseline_Required_Action = "Bespoke compensation likely to be required")
+              )
+            </compute>
+            <requires>
+                <require>Baseline_Required_Action</require>
+                <require>Baseline_Habitat</require>
+                <require>Proposed_Habitat</require>
+                <require>Baseline_Broad_Habitat</require>
+                <require>Proposed_Broad_Habitat</require>
+                <require>Proposed_Distinctiveness_Score</require>
+                <require>Baseline_Distinctiveness_Score</require>
+            </requires>
+        </attribute><!--   
+        <attribute name="Proposed_Habitat_Condition" size="7" type="enum">
+            <compute>table('Condition')/Condition/Condition</compute>
+        </attribute>
+        <attribute name="Proposed_Habitat_Condition_Score" size="3" type="integer">
+            <compute>table('Condition')[Condition=~Proposed_Habitat_Condition]/Condition_Score</compute>
+        </attribute>
+ -->
+        <attribute name="Proposed_Habitat_Condition" size="7" type="enum">
+            <compute>table('Habitat_Condition')[Habitat=~Proposed_Habitat]/Condition</compute>
+            <requires>
+                <require>Proposed_Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Proposed_Habitat_Condition_Score" size="3" type="integer">
+            <compute>table('Habitat_Condition')[Habitat=~Proposed_Habitat][Condition=~Proposed_Habitat_Condition]/Condition_Score</compute>
+            <requires>
+                <require>Proposed_Habitat</require>
+                <require>Proposed_Habitat_Condition</require>
+            </requires>
+        </attribute>
+        <attribute name="Condition_Change" size="30" type="string">
+            <compute>
+                if (~Baseline_Habitat != ~Proposed_Habitat and ~Distinctiveness_Change = "High - High")
+                then "Error - Not like for like"
+                else if (~Baseline_Distinctiveness_Score  = ~Proposed_Distinctiveness_Score and number(~Baseline_Habitat_Condition_Score) &gt; number(~Proposed_Habitat_Condition_Score))
+                then "Error - Cannot reduce condition"
+                else if (number(~Baseline_Distinctiveness_Score) = number(~Proposed_Distinctiveness_Score) and number(~Baseline_Habitat_Condition_Score) = number(~Proposed_Habitat_Condition_Score))
+                then "Error - No Enhancement"
+                else if (number(~Baseline_Habitat_Condition_Score) &gt; number(~Proposed_Habitat_Condition_Score))
+                then "Error - Condition cannot be reduced"
+                else if (number(~Baseline_Distinctiveness_Score) &gt; number(~Proposed_Distinctiveness_Score))
+                then "Error - Trading down"
+                else if (~Baseline_Habitat != ~Proposed_Habitat and number(~Baseline_Distinctiveness_Score) lt number(~Proposed_Distinctiveness_Score))
+                then concat("Lower Distinctiveness Habitat - " ,~Proposed_Habitat_Condition)
+                else concat(~Baseline_Habitat_Condition," - ", ~Proposed_Habitat_Condition)           </compute>
+            <requires>
+                <require>Baseline_Habitat</require>
+                <require>Proposed_Habitat</require>
+                <require>Distinctiveness_Change</require>
+                <require>Baseline_Distinctiveness_Score</require>
+                <require>Proposed_Distinctiveness_Score</require>
+                <require>Baseline_Habitat_Condition_Score</require>
+                <require>Proposed_Habitat_Condition_Score</require>
+                <require>Proposed_Habitat_Condition</require>
+                <require>Baseline_Habitat_Condition</require>
+            </requires>
+        </attribute>
+        <attribute name="Strategic_significance_description" size="3" type="enum" default="Location ecologically desirable but not in local strategy">
+            <compute>table('Strategic_Significance')/Description</compute>
+        </attribute>
+        <attribute name="Strategic_significance" size="3" type="string">
+            <compute>table('Strategic_Significance')[Description =
+                ~Strategic_significance_description]/Strategic_significance</compute>
+            <requires>
+                <require>Strategic_significance_description</require>
+            </requires>
+        </attribute>
+        <attribute name="Strategic_significance_Multiplier" size="3" type="float">
+            <compute>table('Strategic_Significance')[Description =
+                ~Strategic_significance_description]/Multiplier</compute>
+            <requires>
+                <require>Strategic_significance_description</require>
+            </requires>
+        </attribute>
+        <attribute name="Standard_time_to_target" size="20" type="string">
+            <compute>(table('Habitat_Enhancement_Year')[Habitat=~Proposed_Habitat][Baseline_Condition=~Baseline_Habitat_Condition][Proposed_Condition=~Proposed_Habitat_Condition]/Year,"Error - Not Possible")[1]
+            </compute>
+            <requires>
+                <require>Proposed_Habitat</require>
+                <require>Baseline_Habitat_Condition</require>
+                <require>Proposed_Habitat_Condition</require>
+            </requires>
+        </attribute>
+        <attribute name="Advance_Years" size="6" type="integer" default="0" unit="Year"/>
+        <comment>Positive for advance, Negative for delay</comment>
+        <attribute name="Final_time_to_target" size="4" type="integer" unit="Year">
+            <compute>               
+                if (~Standard_time_to_target castable as xs:integer
+                    or ~Standard_time_to_target = "30+")
+                then 
+                   let $Year_to_target := 
+                       if (~Standard_time_to_target = "30+") 
+                       then 30 else xs:integer(~Standard_time_to_target)
+                   return $Year_to_target  - ~Advance_Years
+                else ()              
+            </compute>
+            <requires>
+                <require>Standard_time_to_target</require>
+                <require>Advance_Years</require>
+            </requires>
+        </attribute>
+        <attribute name="Final_time_to_target_Multiplier" type="float">
+            <compute>table('Temporal_Multiplier')[Year=~Final_time_to_target]/Time_to_target_Multiplier</compute>
+            <requires>
+                <require>Final_time_to_target</require>
+            </requires>
+        </attribute><!--       <attribute name="Standard_or_adjusted_time_to_target_condition" type="string">
+                <compute>
+                    if (~Distinctiveness_Score = 0)
+                    then "Standard time to target condition applied"
+                    else if (~Habitat_Condition = "N/A-Agricultural" and number(~Standard_time_to_target) le number(~Advance_Years)) 
+                    then "Check details - is there evidence habitat creation in place?"
+                    else if (number(~Standard_time_to_target) le number(~Advance_Years)) 
+                    then "Check details - Is there evidence that habitat has reached target condition?"
+                    else if (number(~Advance_Years) gt 0 and ~Habitat_Condition = "Poor")then "Check details - is there evidence habitat creation started and the threshold for Poor condition reached?"
+                    else if (number(~Advance_Years) lt 0) then" Check details -Delay in starting habitat in required condition?"
+                    else if (number(~Advance_Years) gt 0) then "Check details -Is there evidence habitat creation started/in place?"
+                    else "Standard time to target condition applied"                
+                </compute>
+                <requires>
+                    <require>Distinctiveness_Score</require>
+                    <require>Habitat_Condition</require>
+                    <require>Standard_time_to_target</require>
+                    <require>Advance_Years</require>
+                </requires>
+            </attribute>
+ -->
+        <attribute name="Final_difficulty_of_Enhancement" type="float">
+            <compute>table('Habitat')[Habitat=~Proposed_Habitat]/Technical_Difficulty_Enhancement</compute>
+            <requires>
+                <require>Proposed_Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Final_difficulty_of_Enhancement_Multiplier" type="float">
+            <compute>table('Habitat')[Habitat=~Proposed_Habitat]/Technical_Difficulty_Enhancement_Multiplier</compute>
+            <requires>
+                <require>Proposed_Habitat</require>
+            </requires>
+        </attribute>
+        <attribute name="Spatial_Risk" type="enum" default="On-site">
+            <compute>
+                     if (~On-off-site = "Off-site")
+                     then table('Spatial_Risk')/Spatial_Risk
+                     else &lt;Spatial_Risk&gt;On-site&lt;/Spatial_Risk&gt;
+                     </compute>
+            <requires>
+                <require>On-off-site</require>
+            </requires>
+        </attribute>
+        <attribute name="Spatial_Risk_Multiplier" type="float" size="4">
+            <compute>if (~On-off-site ="Off-site")
+                then table('Spatial_Risk')[Spatial_Risk=~Spatial_Risk]/Multiplier
+                else 1
+            </compute>
+            <requires>
+                <require>On-off-site</require>
+                <require>Spatial_Risk</require>
+            </requires>
+        </attribute>
+        <attribute name="Habitat_units_delivered_SS" type="float" unit="Unit" background-color="red" format="0.0000">
+            <compute>
+               
+               (
+               
+               (
+                 (~Area * ~Proposed_Distinctiveness_Score * ~Proposed_Habitat_Condition_Score)
+               -
+               (~Area * ~Baseline_Distinctiveness_Score * ~Baseline_Habitat_Condition_Score)
+               ) 
+               * ( ~Final_difficulty_of_Enhancement_Multiplier * ~Final_time_to_target_Multiplier)
+               
+               + (~Area * ~Baseline_Distinctiveness_Score * ~Baseline_Habitat_Condition_Score)
+               )
+               * ~Strategic_significance_Multiplier * ~Trading_Valid * ~Spatial_Risk_Multiplier
+               
+               
+           </compute>
+            <requires>
+                <require>Area</require>
+                <require>Proposed_Distinctiveness_Score</require>
+                <require>Proposed_Habitat_Condition_Score</require>
+                <require>Baseline_Distinctiveness_Score</require>
+                <require>Baseline_Habitat_Condition_Score</require>
+                <require>Final_difficulty_of_Enhancement_Multiplier</require>
+                <require>Final_time_to_target_Multiplier</require>
+                <require>Strategic_significance_Multiplier</require>
+                <require>Trading_Valid</require>
+                <require>Spatial_Risk_Multiplier</require>
+            </requires>
+        </attribute>
+        <attribute name="Habitat_units_delivered_TA2" type="float" unit="Unit" background-color="red" format="0.0000">
+            <compute>
+                ( ( (   (~Area * ~Proposed_Distinctiveness_Score * ~Proposed_Habitat_Condition_Score)
+                   - (~Baseline_Area * ~Baseline_Distinctiveness_Score * ~Baseline_Habitat_Condition_Score)
+                  ) 
+                * ( ~Final_difficulty_of_Enhancement_Multiplier * ~Final_time_to_target_Multiplier ) 
+               ) 
+                + (~Baseline_Area * ~Baseline_Distinctiveness_Score * ~Baseline_Habitat_Condition_Score)
+                ) * (~Strategic_significance_Multiplier * ~Trading_Valid * ~Spatial_Risk_Multiplier)
+        </compute>
+            <requires>
+                <require>Area</require>
+                <require>Proposed_Distinctiveness_Score</require>
+                <require>Proposed_Habitat_Condition_Score</require>
+                <require>Baseline_Area</require>
+                <require>Baseline_Distinctiveness_Score</require>
+                <require>Baseline_Habitat_Condition_Score</require>
+                <require>Final_difficulty_of_Enhancement_Multiplier</require>
+                <require>Final_time_to_target_Multiplier</require>
+                <require>Strategic_significance_Multiplier</require>
+                <require>Trading_Valid</require>
+                <require>Spatial_Risk_Multiplier</require>
+            </requires>
+        </attribute><!--       
+        <attribute name="Habitat_units_delivered" type="float" unit="Unit" background-color="red" format="0.0000">
+            <compute>
+                ~Trading_Valid *
+                ~Area *
+                ~Proposed_Distinctiveness_Score *
+                ~Proposed_Habitat_Condition_Score * 
+                ~Strategic_significance_Multiplier *
+                ~Final_time_to_target_Multiplier *
+                ~Final_difficulty_of_Enhancement_Multiplier *
+                ~Spatial_Risk_Multiplier
+            </compute>
+            <requires>
+                <require>Trading_Valid</require>
+                <require>Area</require>
+                <require>Proposed_Distinctiveness_Score</require>
+                <require>Proposed_Habitat_Condition_Score</require>
+                <require>Strategic_significance_Multiplier</require>
+                <require>Final_time_to_target_Multiplier</require>
+                <require>Final_difficulty_of_Enhancement_Multiplier</require>
+                <require>Spatial_Risk_Multiplier</require>
+            </requires>
+        </attribute>
+ -->
+        <attribute name="User_comments" size="3*40" type="text" optional="yes"/>
+        <attribute name="Consenting_comments" size="3*40" type="text" optional="yes"/>
+        <attribute name="GIS_ref" size="10" type="string" optional="yes"/>
+        <attribute name="Of-site_ref" size="10" type="string" optional="yes"/>
+    </entity><!--  Base model xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -->
+    <entity id="Habitat" name="Habitat" role="base">
+        <description>
+            <div>Data extracted from Online Calculator G-1 All Habitats with Habitat type with Labelling column split into Broad Habitat and Habitat 
+                <div>Fields Definitive_UKHAB_EUNISNE_Code to Level_4_Label  from ?   but unused</div>
+            </div>
+            <div>Base data : Fields Distinctiveness_Category to data to Technical_Difficulty_Enhancement_Multiplier   from  Technical Annex 2 :  Data Tabel 1  
+            </div>
+            <div>score/multipliers in this table are independant of  Habitat and are normalised into separate tables</div>
+        </description>
+        <attribute name="Broad_Habitat" type="text" size="30"/>
+        <attribute name="Habitat" type="text" size="30" key="yes"/>
+        <attribute name="Definitive_UKHAB_EUNISNE_Code" size="20"/>
+        <attribute name="Level_1" size="20"/>
+        <attribute name="Level_2_code" size="20"/>
+        <attribute name="Level_2_Label" size="20"/>
+        <attribute name="Level_3_code" size="20"/>
+        <attribute name="Level_3_Label" size="20"/>
+        <attribute name="Level_4_code" size="20"/>
+        <attribute name="Level_4_Label" size="20"/>
+        <attribute name="Distinctiveness_Category" size="20"/>
+        <attribute name="Distinctiveness_Score" size="20"/>
+        <attribute name="Trading_notes" size="20"/>
+        <attribute name="Technical_Difficulty_Creation" size="20"/>
+        <attribute name="Technical_Difficulty_Creation_Multiplier" size="20"/>
+        <attribute name="Technical_Difficulty_Enhancement" size="20"/>
+        <attribute name="Technical_Difficulty_Enhancement_Multiplier" size="20"/>
+        <attribute name="Basic_Description" size="20"/>
+    </entity>
+    <entity name="Technical_Difficulty_Creation" id="Technical_Difficulty_Creation" role="base">
+        <attribute name="Technical_Difficulty_Creation" key="yes"/>
+        <attribute name="Technical_Difficulty_Creation_Multiplier"/>
+    </entity>
+    <entity name="Technical_Difficulty_Enhancement" id="Technical_Difficulty_Enhancement" role="base">
+        <attribute name="Technical_Difficulty_Enhancement" key="yes"/>
+        <attribute name="Technical_Difficulty_Enhancement_Multiplier"/>
+    </entity>
+    <relationship name="TDC-habitat">
+        <role entity="Technical_Difficulty_Creation"/>
+        <role entity="Habitat" min="1" max="N"/>
+    </relationship>
+    <relationship name="TDE-habitat">
+        <role entity="Technical_Difficulty_Enhancement"/>
+        <role entity="Habitat" min="1" max="N"/>
+    </relationship>
+    <relationship name="Distinctiveness">
+        <role entity="Distinctiveness" key="Distinctiveness_Category"/>
+        <role entity="Habitat" key="Distinctiveness_Category" min="1" max="N"/>&gt; </relationship>
+    <relationship name="Habitat-type" id="Habitat-type">
+        <role entity="Broad_Habitat" key="Broad_Habitat"/>
+        <role entity="Habitat" key="Broad_Habitat" min="1" max="N"/>
+    </relationship>
+    <relationship name="Creation">
+        <role entity="Creation" key="Habitat"/>
+        <role entity="Habitat" key="Habitat" min="1" max="1"/>
+    </relationship>
+    <relationship name="Trading">
+        <role entity="Trading-notes"/>
+        <role entity="Habitat" min="1" max="N"/>
+    </relationship>
+    <entity name="Broad_Habitat" id="Broad_Habitat" role="base">
+        <attribute name="Broad_Habitat" key="yes"/>
+    </entity><!--  factored out of Habitat but not used
+    <entity id="Distinctiveness" name="Distinctiveness" role="base">
+        <attribute name="Distinctiveness_Category" size="20" key="yes"/>
+        <attribute name="Distinctiveness_Score" size="20"/>
+        <attribute name="Suggested_action" size="20"/>
+    </entity>
+   <entity name="Trading-notes" id="Trading-notes" role="base">
+        <attribute name="Trading_Notes"/>
+    </entity>
+    <entity id="Condition" name="Condition" role="base">
+        <attribute name="Condition" size="20" key="yes"/>
+        <attribute name="Condition_Score" size="20"/>
+    </entity>
+    <entity id="Connectivity" name="Connectivity" role="base">
+        <attribute name="Connectivity" size="20" key="yes"/>
+        <attribute name="Description" size="20"/>
+        <attribute name="Score" size="20"/>
+    </entity>
+    -->
+    <entity id="Spatial_Risk" name="Spatial_Risk" role="base">
+        <description>
+            <div>from S/S G-3 Multipliers subtable Spatial Risk</div>
+        </description>
+        <attribute name="Spatial_Risk" size="20" key="yes"/>
+        <attribute name="Multiplier" size="20"/>
+    </entity>
+    <entity name="Habitat_Creation_Year" role="base">
+        <description>
+            <div>Online Calculator  Table G4 Temporal Multipliers - extracted as CSV with side tables edited out 
+            and restructed into a one-dimensional table and omitting No Possible entries
+           </div>
+            <div>based on Technical Annex Data YTable 3: Habitat creation matrix</div>
+        </description>
+        <attribute name="Habitat" type="string" size="50" key="yes"/>
+        <attribute name="Condition" type="string" size="20" key="yes"/>
+        <attribute name="Target_Year" type="string"/>
+    </entity>
+    <entity id="Species" name="Species" role="base">
+        <description>
+            <div>Native Species list based on Woodland Trust list +</div>
+        </description>
+        <attribute name="Common_name" size="20"/>
+        <attribute name="Botanical_name" size="20" key="yes"/>
+        <attribute name="BNG_native" size="20"/>
+        <attribute name="BNG_naturalised" size="20"/>
+    </entity>
+    <entity id="Temporal_Multiplier" name="Temporal_Multiplier" role="base">
+        <description>
+            <div>G4 Temporal Multipliers - sub-table extracted from exported CSV</div>
+        </description>
+        <attribute name="Year" size="20" key="yes"/>
+        <attribute name="PC_of_original_value" size="20"/>
+        <attribute name="Time_to_target_Multiplier" size="20"/>
+    </entity>
+    <entity id="Strategic_Significance" name="Strategic_Significance" role="base">
+        <description>
+            <div>from S/S G3-Multipliers - subtable Spatial multipliers (wrongly named)</div>
+        </description>
+        <attribute name="Description" size="20" key="yes"/>
+        <attribute name="Strategic_significance" size="20"/>
+        <attribute name="Multiplier" size="20"/>
+    </entity>
+    <entity id="Habitat_Condition" name="Habitat_Condition" role="base">
+        <description>
+            <div>Online Calculator Table G-8 Condition lookup </div>
+            <div>Base data from Technical Annex : Data Table 2 Habitat condition score matrix</div>
+            <div>restructed to a one-dimensional table with two keys and only Possible values included
+            </div>
+        </description>
+        <attribute name="Habitat" key="yes" size="20"/>
+        <attribute name="Condition" key="yes" size="20"/>
+        <attribute name="Condition_Score" size="20"/>
+    </entity>
+    <entity name="Habitat_Enhancement_Year" id="Habitat_Enhancement_Year" role="base">
+        <description>
+            <div>From Online Calculator Table G-5 Enhancement Temporal</div>
+            <div>Technical Annex 2 Data Table 3: Habitat enhancement matrix reformated to a one-dimensional table with three keys and Not Possible entries dropped</div>
+        </description>
+        <attribute name="Habitat" type="string" size="20" key="yes"/>
+        <attribute name="Baseline_Condition" type="string" size="20" key="yes"/>
+        <attribute name="Proposed_Condition" type="string" size="20" key="yes"/>
+        <attribute name="Year" type="string" size="5"/>
+    </entity>
+    <entity id="Local_Authority" name="Local_Authority" role="base">
+        <description>
+            <div>from S/S  Lists: Local Authority List</div>
+        </description>
+        <attribute name="Local_Authority" size="20"/>
+    </entity>
+    <entity id="Application_Type" name="Application_Type" role="base">
+        <description>
+            <div>from S/S  Lists: Authority type</div>
+        </description>
+        <attribute name="Application_type" size="20"/>
+    </entity>
+</model>
